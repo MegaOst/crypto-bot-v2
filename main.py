@@ -1,62 +1,67 @@
-"""Point d'entrée du bot de trading crypto."""
+"""
+Bot de trading crypto - Point d'entrée principal
+"""
+
+import logging
 import sys
 import time
-import logging
 from datetime import datetime
-
-# Import de la config
-from config.settings import config
+from pathlib import Path
 
 # Import des modules
 from data.collector import CryptoDataCollector
-from strategies.analyzer import TechnicalAnalyzer
+from strategies.rsi_strategy import RSIStrategy
+from config.settings import settings
 
-# Configuration du logging
+# Configuration logging
 logging.basicConfig(
-    level=getattr(logging, config.LOG_LEVEL),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=getattr(logging, settings.LOG_LEVEL),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
 )
+
 logger = logging.getLogger(__name__)
 
-def print_banner():
-    """Affiche la bannière de démarrage."""
-    print("\n" + "=" * 60)
-    print("🚀 CRYPTO BOT - DÉMARRAGE")
-    print("=" * 60)
-    print(f"   Symbol: {config.CRYPTO_SYMBOL}")
-    print(f"   Currency: {config.VS_CURRENCY}")
-    print(f"   Interval: {config.CHECK_INTERVAL}s")
-    print(f"   RSI Period: {config.RSI_PERIOD}")
-    print(f"   MA Periods: {config.MA_SHORT_PERIOD}/{config.MA_LONG_PERIOD}")
-    print("=" * 60 + "\n")
-
 def main():
-    """Fonction principale."""
+    """Fonction principale du bot"""
     
-    # Bannière
-    print_banner()
+    logger.info("="*60)
+    logger.info("🚀 DÉMARRAGE DU BOT DE TRADING")
+    logger.info("="*60)
     
-    # Vérification de la clé API
-    if not config.COINGECKO_API_KEY:
-        logger.error("❌ COINGECKO_API_KEY non définie !")
-        sys.exit(1)
+    # Vérification configuration
+    logger.info("⚙️ INITIALISATION DE LA CONFIGURATION...")
+    logger.info("✅ Configuration chargée:")
+    logger.info(f"   Symbol: {settings.CRYPTO_SYMBOL}")
+    logger.info(f"   Currency: {settings.VS_CURRENCY}")
+    logger.info(f"   Interval: {settings.CHECK_INTERVAL}s")
+    logger.info(f"   RSI Period: {settings.RSI_PERIOD}")
     
-    logger.info(f"🔑 API Key: {config.COINGECKO_API_KEY[:10]}...")
-    
-    # Initialisation des modules
+    # Initialisation collecteur
     try:
-        collector = CryptoDataCollector(api_key=config.COINGECKO_API_KEY)
-        analyzer = TechnicalAnalyzer(
-            rsi_period=config.RSI_PERIOD,
-            rsi_oversold=config.RSI_OVERSOLD,
-            rsi_overbought=config.RSI_OVERBOUGHT,
-            ma_short=config.MA_SHORT_PERIOD,
-            ma_long=config.MA_LONG_PERIOD
-        )
-        logger.info("✅ Modules initialisés")
+        collector = CryptoDataCollector(api_key=settings.COINGECKO_API_KEY)
+        logger.info("✅ Collecteur de données initialisé")
     except Exception as e:
-        logger.error(f"❌ Erreur d'initialisation: {e}")
+        logger.error(f"❌ Erreur initialisation collecteur: {e}")
         sys.exit(1)
+    
+    # Initialisation stratégie
+    try:
+        strategy = RSIStrategy(
+            period=settings.RSI_PERIOD,
+            oversold=30,
+            overbought=70
+        )
+        logger.info("✅ Stratégie RSI initialisée")
+    except Exception as e:
+        logger.error(f"❌ Erreur initialisation stratégie: {e}")
+        sys.exit(1)
+    
+    logger.info("="*60)
+    logger.info("✅ INITIALISATION TERMINÉE - DÉBUT DU MONITORING")
+    logger.info("="*60)
     
     # Boucle principale
     iteration = 0
@@ -65,58 +70,53 @@ def main():
         iteration += 1
         
         try:
-            print("\n" + "=" * 60)
-            print(f"📊 ITÉRATION #{iteration} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            print("=" * 60)
+            logger.info("")
+            logger.info(f"📊 ITÉRATION #{iteration} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            logger.info("="*60)
             
-            # Collecte des données
-            print("🔄 Récupération des données...")
-            df = collector.get_historical_data(
-                symbol=config.CRYPTO_SYMBOL,
-                vs_currency=config.VS_CURRENCY,
+            # Récupération des données
+            logger.info("🔄 Récupération des données...")
+            df = collector.get_market_data(
+                symbol=settings.CRYPTO_SYMBOL,
+                vs_currency=settings.VS_CURRENCY,
                 days=30
             )
             
-            if df is None or len(df) == 0:
-                logger.warning("❌ Pas de données disponibles")
-                print(f"⏳ Nouvelle tentative dans {config.CHECK_INTERVAL}s...")
-                time.sleep(config.CHECK_INTERVAL)
+            if df is None or df.empty:
+                logger.warning("⚠️ Aucune donnée disponible, nouvelle tentative dans 60s")
+                time.sleep(60)
                 continue
             
-            print(f"✅ {len(df)} points de données récupérés")
+            logger.info(f"✅ {len(df)} points de données récupérés")
             
-            # Analyse
-            print("🔍 Analyse en cours...")
-            analysis = analyzer.analyze(df)
+            # Analyse de la stratégie
+            logger.info("📈 Analyse de la stratégie RSI...")
+            signal = strategy.analyze(df)
             
-            if analysis:
-                print("\n" + "=" * 60)
-                print("📈 RÉSULTATS DE L'ANALYSE:")
-                print("=" * 60)
-                print(f"   💰 Prix actuel:     ${analysis['price']:.2f}")
-                print(f"   📊 RSI({config.RSI_PERIOD}):          {analysis['rsi']:.2f}")
-                print(f"      → Signal:        {analysis['rsi_signal']}")
-                print(f"   📉 MA({config.MA_SHORT_PERIOD}):           ${analysis['ma_short']:.2f}")
-                print(f"   📈 MA({config.MA_LONG_PERIOD}):          ${analysis['ma_long']:.2f}")
-                print(f"      → Signal:        {analysis['ma_signal']}")
-                print("=" * 60)
-                print(f"   🎯 SIGNAL GLOBAL:   {analysis['global_signal']}")
-                print("=" * 60)
+            if signal:
+                logger.info(f"🎯 SIGNAL DÉTECTÉ: {signal['action']}")
+                logger.info(f"   Prix: {signal['price']:.2f} {settings.VS_CURRENCY.upper()}")
+                logger.info(f"   RSI: {signal['rsi']:.2f}")
+                logger.info(f"   Raison: {signal['reason']}")
             else:
-                print("❌ Échec de l'analyse")
+                logger.info("⏸️ Aucun signal de trading")
             
-            # Attente
-            print(f"\n⏳ Prochaine analyse dans {config.CHECK_INTERVAL} secondes...\n")
-            time.sleep(config.CHECK_INTERVAL)
+            # Attente avant prochaine itération
+            logger.info(f"⏳ Prochaine analyse dans {settings.CHECK_INTERVAL} secondes...")
+            time.sleep(settings.CHECK_INTERVAL)
             
         except KeyboardInterrupt:
-            print("\n\n👋 Arrêt du bot demandé par l'utilisateur")
-            break
+            logger.info("")
+            logger.info("="*60)
+            logger.info("⏹️ ARRÊT DU BOT (interruption utilisateur)")
+            logger.info("="*60)
+            sys.exit(0)
             
         except Exception as e:
-            logger.error(f"❌ Erreur dans l'itération {iteration}: {e}", exc_info=True)
-            print(f"⏳ Nouvelle tentative dans {config.CHECK_INTERVAL}s...")
-            time.sleep(config.CHECK_INTERVAL)
+            logger.error(f"❌ Erreur dans l'itération {iteration}: {e}")
+            logger.exception("Détails de l'erreur:")
+            logger.info("⏳ Nouvelle tentative dans 60 secondes...")
+            time.sleep(60)
 
 if __name__ == "__main__":
     main()
