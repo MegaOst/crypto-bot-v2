@@ -1,103 +1,88 @@
-"""Module de collecte des données de marché"""
-
+"""Module de collecte de données CoinGecko."""
+import logging
+from typing import Optional, Dict, Any
+import pandas as pd
 import requests
-import time
-from typing import Dict, List, Optional
 from datetime import datetime, timedelta
+from config.settings import config
+
+logger = logging.getLogger(__name__)
 
 class CryptoDataCollector:
-    """Collecteur de données depuis CoinGecko"""
+    """Collecteur de données crypto depuis CoinGecko."""
+    
+    BASE_URL = "https://api.coingecko.com/api/v3"
     
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key
-        self.base_url = "https://api.coingecko.com/api/v3"
-        self.cache = {}
-        self.cache_duration = 180  # 3 minutes
-        
-    def get_price(self, symbol: str, vs_currency: str = "usd") -> Optional[float]:
-        """Récupère le prix actuel"""
-        cache_key = f"{symbol}_{vs_currency}_price"
-        
-        # Vérifier le cache
-        if cache_key in self.cache:
-            cached_data, cached_time = self.cache[cache_key]
-            if time.time() - cached_time < self.cache_duration:
-                return cached_data
-        
+        """Initialise le collecteur."""
+        self.api_key = api_key or config.COINGECKO_API_KEY
+        self.session = requests.Session()
+        if self.api_key:
+            self.session.headers.update({'x-cg-pro-api-key': self.api_key})
+    
+    def get_current_price(self, symbol: str, vs_currency: str = 'usd') -> Optional[Dict[str, Any]]:
+        """Récupère le prix actuel."""
         try:
-            url = f"{self.base_url}/simple/price"
+            url = f"{self.BASE_URL}/simple/price"
             params = {
-                "ids": symbol,
-                "vs_currencies": vs_currency
+                'ids': symbol,
+                'vs_currencies': vs_currency,
+                'include_24hr_change': 'true',
+                'include_24hr_vol': 'true',
+                'include_market_cap': 'true'
             }
             
-            if self.api_key:
-                params["x_cg_pro_api_key"] = self.api_key
-            
-            response = requests.get(url, params=params, timeout=10)
+            response = self.session.get(url, params=params, timeout=10)
             response.raise_for_status()
-            
             data = response.json()
-            price = data.get(symbol, {}).get(vs_currency)
             
-            if price:
-                self.cache[cache_key] = (price, time.time())
-                return price
+            if symbol in data:
+                return data[symbol]
             
+            logger.warning(f"Symbole {symbol} non trouvé")
             return None
             
         except Exception as e:
-            print(f"❌ Erreur lors de la récupération du prix: {e}")
+            logger.error(f"Erreur récupération prix: {e}")
             return None
     
     def get_historical_data(
         self, 
         symbol: str, 
-        vs_currency: str = "usd",
-        days: int = 7
-    ) -> List[Dict]:
-        """Récupère les données historiques"""
-        cache_key = f"{symbol}_{vs_currency}_history_{days}"
-        
-        # Vérifier le cache
-        if cache_key in self.cache:
-            cached_data, cached_time = self.cache[cache_key]
-            if time.time() - cached_time < self.cache_duration:
-                return cached_data
-        
+        vs_currency: str = 'usd',
+        days: int = 30
+    ) -> Optional[pd.DataFrame]:
+        """Récupère les données historiques."""
         try:
-            url = f"{self.base_url}/coins/{symbol}/market_chart"
+            url = f"{self.BASE_URL}/coins/{symbol}/market_chart"
             params = {
-                "vs_currency": vs_currency,
-                "days": days,
-                "interval": "hourly" if days <= 7 else "daily"
+                'vs_currency': vs_currency,
+                'days': days,
+                'interval': 'daily'
             }
             
-            if self.api_key:
-                params["x_cg_pro_api_key"] = self.api_key
-            
-            response = requests.get(url, params=params, timeout=10)
+            response = self.session.get(url, params=params, timeout=15)
             response.raise_for_status()
-            
             data = response.json()
-            prices = data.get("prices", [])
             
-            # Formater les données
-            formatted_data = [
-                {
-                    "timestamp": datetime.fromtimestamp(price[0] / 1000),
-                    "price": price[1]
-                }
-                for price in prices
-            ]
+            if 'prices' not in data:
+                logger.warning("Pas de données de prix")
+                return None
             
-            self.cache[cache_key] = (formatted_data, time.time())
-            return formatted_data
+            # Conversion en DataFrame
+            df = pd.DataFrame(data['prices'], columns=['timestamp', 'price'])
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            df.set_index('timestamp', inplace=True)
+            
+            # Ajout des volumes si disponibles
+            if 'total_volumes' in data:
+                volumes = pd.DataFrame(data['total_volumes'], columns=['timestamp', 'volume'])
+                volumes['timestamp'] = pd.to_datetime(volumes['timestamp'], unit='ms')
+                volumes.set_index('timestamp', inplace=True)
+                df = df.join(volumes)
+            
+            return df
             
         except Exception as e:
-            print(f"❌ Erreur lors de la récupération de l'historique: {e}")
-            return []
-    
-    def clear_cache(self):
-        """Vide le cache"""
-        self.cache = {}
+            logger.error(f"Erreur récupération historique: {e}")
+            return None
