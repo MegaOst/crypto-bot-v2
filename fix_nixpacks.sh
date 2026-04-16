@@ -1,8 +1,12 @@
 #!/bin/bash
 
-echo "🔧 Force Railway à utiliser le Procfile..."
+echo "🚀 Configuration Railway pour Flask..."
+echo ""
 
-# 1. CRÉER nixpacks.toml pour DÉSACTIVER la détection auto
+# 1. ALLER À LA RACINE DU PROJET
+cd ~/crypto-trading-bot
+
+# 2. CRÉER nixpacks.toml
 cat > nixpacks.toml << 'EOF'
 [phases.setup]
 nixPkgs = ['python3', 'gcc']
@@ -11,16 +15,31 @@ nixPkgs = ['python3', 'gcc']
 cmds = ['python -m venv --copies /opt/venv', '. /opt/venv/bin/activate && pip install -r requirements.txt']
 
 [start]
-cmd = 'sh -c ". /opt/venv/bin/activate && exec $(cat Procfile | cut -d: -f2-)"'
+cmd = '. /opt/venv/bin/activate && gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 120 web.app:app'
 EOF
 
-# 2. VÉRIFIER que Procfile existe
+# 3. CRÉER Procfile
 cat > Procfile << 'EOF'
-web: python web/app.py
+web: gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 120 web.app:app
 EOF
 
-# 3. S'ASSURER que web/app.py existe et est minimal
+# 4. CRÉER requirements.txt
+cat > requirements.txt << 'EOF'
+flask==3.0.0
+gunicorn==21.2.0
+requests==2.31.0
+pandas==2.1.4
+numpy==1.26.2
+python-dotenv==1.0.0
+EOF
+
+# 5. CRÉER le dossier web/
 mkdir -p web
+
+# 6. CRÉER web/__init__.py (vide)
+touch web/__init__.py
+
+# 7. CRÉER web/app.py
 cat > web/app.py << 'EOF'
 from flask import Flask
 import os
@@ -52,19 +71,43 @@ if __name__ == '__main__':
     app.run(host='0.0.0.0', port=port, debug=False)
 EOF
 
-# 4. REQUIREMENTS MINIMAL (ajoute gunicorn)
-cat > requirements.txt << 'EOF'
-flask==3.0.0
-gunicorn==21.2.0
-requests==2.31.0
-pandas==2.1.4
-numpy==1.26.2
-python-dotenv==1.0.0
-EOF
-
+# 8. AFFICHER CE QUI A ÉTÉ CRÉÉ
 echo ""
-echo "✅ Configuration Nixpacks créée"
-echo "✅ Procfile vérifié"
-echo "✅ Flask app simplifiée"
+echo "✅ Fichiers créés :"
+echo ""
+ls -la | grep -E "(nixpacks|Procfile|requirements|web)"
+echo ""
+echo "✅ Contenu de web/ :"
+ls -la web/
 echo ""
 
+# 9. VÉRIFIER LES FICHIERS
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📄 nixpacks.toml :"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+cat nixpacks.toml
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📄 Procfile :"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+cat Procfile
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📄 requirements.txt :"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+cat requirements.txt
+echo ""
+
+# 10. GIT STATUS
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📦 Git Status :"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+git status
+echo ""
+
+echo "✅ Configuration terminée !"
+echo ""
+echo "🚀 Pour déployer, exécute :"
+echo "   git add ."
+echo "   git commit -m 'fix: add nixpacks and Flask app'"
+echo "   git push origin main"
