@@ -51,7 +51,7 @@ except Exception as e:
 
 try:
     print("   - Importing analyzer...")
-    from strategies.analyzer import TradingAnalyzer
+    from strategies.analyzer import MarketAnalyzer
     print("   ✅ strategies.analyzer OK")
 except Exception as e:
     print(f"   ❌ ERREUR strategies.analyzer: {e}")
@@ -102,7 +102,7 @@ while True:
             
             # Analyser
             print("\n📈 Analyse technique...")
-            analyzer = TradingAnalyzer(config)
+            analyzer = MarketAnalyzer(config)
             signal = analyzer.analyze(df)
             
             print(f"\n{'='*60}")
