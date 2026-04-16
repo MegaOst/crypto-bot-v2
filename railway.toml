@@ -5,4 +5,3 @@ builder = "nixpacks"
 startCommand = ". /opt/venv/bin/activate && gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 120 web.app:app"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 10
-EOF
