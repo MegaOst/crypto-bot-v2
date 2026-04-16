@@ -3,7 +3,7 @@
 from typing import Dict, List, Optional
 from datetime import datetime
 
-class MarketAnalyzer:
+class TradingAnalyzer:
     """Analyseur de signaux de marché"""
     
     def __init__(self, rsi_period: int = 14):
