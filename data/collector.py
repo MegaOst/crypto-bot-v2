@@ -5,7 +5,7 @@ import time
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 
-class MarketDataCollector:
+class CryptoDataCollector:
     """Collecteur de données depuis CoinGecko"""
     
     def __init__(self, api_key: Optional[str] = None):

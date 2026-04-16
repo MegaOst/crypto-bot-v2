@@ -6,7 +6,7 @@ class TradingConfig:
     """Configuration du bot de trading"""
     
     # Crypto à analyser
-    CRYPTO_SYMBOL: str = os.getenv('SYMBOL', 'ethereum')  # ← CHANGÉ ICI
+    CRYPTO_SYMBOL: str = os.getenv('SYMBOL', 'ethereum')  # ← 'SYMBOL' pas 'CRYPTO_SYMBOL'
     VS_CURRENCY: str = os.getenv('VS_CURRENCY', 'usd')
     
     # Intervalles (en secondes)
