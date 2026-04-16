@@ -1,4 +1,2 @@
-"""Data collection package"""
-from .collector import CryptoDataCollector
-
-__all__ = ['CryptoDataCollector']
+from .collector import DataCollector
+__all__ = ['DataCollector']

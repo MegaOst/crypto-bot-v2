@@ -1,87 +1,70 @@
-"""Bot de trading crypto - Point d'entrée principal"""
-import logging
-import sys
 import time
 from datetime import datetime
-
-from data.collector import CryptoDataCollector
-from strategies.rsi_strategy import RSIStrategy
 from config.settings import settings
-
-logging.basicConfig(
-    level=getattr(logging, settings.LOG_LEVEL),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler(sys.stdout)]
-)
-
-logger = logging.getLogger(__name__)
+from data.collector import DataCollector
+from strategies.rsi_strategy import RSIStrategy
 
 def main():
-    """Fonction principale du bot"""
+    print("=" * 60)
+    print("🚀 TRADING BOT DÉMARRÉ")
+    print("=" * 60)
+    print(f"📊 Crypto: {settings.CRYPTO_SYMBOL.upper()}")
+    print(f"💱 Devise: {settings.VS_CURRENCY.upper()}")
+    print(f"📈 RSI: {settings.RSI_PERIOD} / {settings.RSI_OVERSOLD} / {settings.RSI_OVERBOUGHT}")
+    print(f"⏱️  Intervalle: {settings.CHECK_INTERVAL}s")
+    print("=" * 60)
     
-    logger.info("="*60)
-    logger.info("🚀 DÉMARRAGE DU BOT DE TRADING")
-    logger.info("="*60)
-    logger.info(f"   Symbol: {settings.CRYPTO_SYMBOL}")
-    logger.info(f"   Currency: {settings.VS_CURRENCY}")
-    logger.info(f"   Interval: {settings.CHECK_INTERVAL}s")
-    logger.info(f"   RSI Period: {settings.RSI_PERIOD}")
+    collector = DataCollector(
+        api_key=settings.COINGECKO_API_KEY,
+        symbol=settings.CRYPTO_SYMBOL,
+        vs_currency=settings.VS_CURRENCY
+    )
     
-    try:
-        collector = CryptoDataCollector(api_key=settings.COINGECKO_API_KEY)
-        strategy = RSIStrategy(
-            period=settings.RSI_PERIOD,
-            oversold=settings.RSI_OVERSOLD,
-            overbought=settings.RSI_OVERBOUGHT
-        )
-        logger.info("✅ Initialisation terminée")
-    except Exception as e:
-        logger.error(f"❌ Erreur initialisation: {e}")
-        sys.exit(1)
-    
-    logger.info("="*60)
-    
-    iteration = 0
+    strategy = RSIStrategy(
+        period=settings.RSI_PERIOD,
+        oversold=settings.RSI_OVERSOLD,
+        overbought=settings.RSI_OVERBOUGHT
+    )
     
     while True:
-        iteration += 1
-        
         try:
-            logger.info(f"\n📊 ITÉRATION #{iteration} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            logger.info("="*60)
+            now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
-            df = collector.get_market_data(
-                symbol=settings.CRYPTO_SYMBOL,
-                vs_currency=settings.VS_CURRENCY,
-                days=30
-            )
-            
-            if df is None or df.empty:
-                logger.warning("⚠️ Aucune donnée, retry dans 60s")
-                time.sleep(60)
+            price = collector.get_current_price()
+            if price is None:
+                print(f"\n❌ [{now}] Impossible de récupérer le prix")
+                time.sleep(settings.CHECK_INTERVAL)
                 continue
             
-            signal = strategy.analyze(df)
+            df = collector.get_historical_data(days=30)
+            if df.empty:
+                print(f"\n⚠️  [{now}] Pas de données historiques")
+                time.sleep(settings.CHECK_INTERVAL)
+                continue
             
-            if signal:
-                logger.info(f"🎯 SIGNAL: {signal['action']}")
-                logger.info(f"   Prix: {signal['price']:.2f} {settings.VS_CURRENCY.upper()}")
-                logger.info(f"   RSI: {signal['rsi']:.2f}")
-                logger.info(f"   Raison: {signal['reason']}")
+            signal, rsi, reason = strategy.generate_signal(df)
+            
+            print(f"\n{'=' * 60}")
+            print(f"🕐 {now}")
+            print(f"💰 Prix: ${price:,.2f}")
+            
+            if signal == 'BUY':
+                print(f"🟢 SIGNAL: {signal} - {reason}")
+            elif signal == 'SELL':
+                print(f"🔴 SIGNAL: {signal} - {reason}")
             else:
-                logger.info("⏸️ Aucun signal")
+                print(f"⚪ SIGNAL: {signal} - {reason}")
             
-            logger.info(f"⏳ Prochaine analyse dans {settings.CHECK_INTERVAL}s...")
+            print(f"{'=' * 60}")
+            
             time.sleep(settings.CHECK_INTERVAL)
             
         except KeyboardInterrupt:
-            logger.info("\n⏹️ ARRÊT DU BOT")
-            sys.exit(0)
-            
+            print("\n\n🛑 Arrêt du bot...")
+            break
         except Exception as e:
-            logger.error(f"❌ Erreur itération {iteration}: {e}")
-            logger.exception("Détails:")
-            time.sleep(60)
+            print(f"\n❌ Erreur: {e}")
+            time.sleep(settings.CHECK_INTERVAL)
 
 if __name__ == "__main__":
     main()
