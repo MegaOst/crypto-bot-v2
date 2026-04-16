@@ -6,3 +6,4 @@ cmds = ['python -m venv --copies /opt/venv', '. /opt/venv/bin/activate && pip in
 
 [start]
 cmd = '. /opt/venv/bin/activate && gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 120 web.app:app'
+EOF
