@@ -93,8 +93,8 @@ while True:
         print("🔄 Récupération des données...")
         collector = CryptoDataCollector(config)
         df = collector.get_historical_data(
-    symbol=config.crypto_symbol,
-    vs_currency=config.vs_currency,
+    symbol=config.CRYPTO_SYMBOL,
+    vs_currency=config.VS_CURRENCY,
     days=30
 )
         
