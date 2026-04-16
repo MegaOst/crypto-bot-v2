@@ -10,7 +10,7 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-class DataCollector:
+class CryptoDataCollector:
     """Collecteur de données crypto via CoinGecko API"""
     
     def __init__(self, api_key: str):
@@ -80,13 +80,13 @@ class DataCollector:
             df_prices = pd.DataFrame(prices, columns=['timestamp', 'price'])
             df_volumes = pd.DataFrame(volumes, columns=['timestamp', 'volume'])
             
-            # Fusion sur timestamp
+            # Fusion des deux DataFrames
             df = pd.merge(df_prices, df_volumes, on='timestamp', how='left')
             
-            # Conversion timestamp → datetime
+            # Conversion timestamp en datetime
             df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
             
-            # Tri chronologique
+            # Tri par date
             df = df.sort_values('timestamp').reset_index(drop=True)
             
             logger.info(f"✅ {len(df)} points récupérés (prix + volumes)")
