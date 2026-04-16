@@ -1,80 +1,71 @@
-"""Bot de trading crypto - Point d'entrée principal."""
+"""Point d'entrée du bot de trading crypto."""
 import sys
-import os
 import time
 import logging
 from datetime import datetime
 
+# Import de la config
+from config.settings import config
+
+# Import des modules
+from data.collector import CryptoDataCollector
+from strategies.analyzer import TechnicalAnalyzer
+
 # Configuration du logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, config.LOG_LEVEL),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-print("=" * 60)
-print("🚀 DÉMARRAGE DU BOT - VERSION DEBUG")
-print("=" * 60)
-print(f"📂 Répertoire de travail: {os.getcwd()}")
-print(f"📁 Fichiers présents: {os.listdir('.')}")
-print(f"🐍 Version Python: {sys.version}")
-
-# Import de la config
-try:
+def print_banner():
+    """Affiche la bannière de démarrage."""
+    print("\n" + "=" * 60)
+    print("🚀 CRYPTO BOT - DÉMARRAGE")
     print("=" * 60)
-    print("🔧 VARIABLES D'ENVIRONNEMENT:")
-    print(f"   CRYPTO_SYMBOL: {os.getenv('SYMBOL', '❌ NON DÉFINIE')}")
-    print(f"   VS_CURRENCY: {os.getenv('VS_CURRENCY', 'usd')}")
-    print(f"   CHECK_INTERVAL: {os.getenv('CHECK_INTERVAL', '300')}")
-    print(f"   CACHE_TTL: {os.getenv('CACHE_TTL', '180')}")
-    print(f"   RSI_PERIOD: {os.getenv('RSI_PERIOD', '14')}")
-    print(f"   LOG_LEVEL: {os.getenv('LOG_LEVEL', 'INFO')}")
-    print("=" * 60)
-    
-    print("📦 IMPORT DES MODULES...")
-    
-    print("   - Importing config...")
-    from config.settings import config
-    print("   ✅ config.settings OK")
-    
-    print("   - Importing data collector...")
-    from data.collector import CryptoDataCollector
-    print("   ✅ data.collector OK")
-    
-    print("   - Importing analyzer...")
-    from strategies.analyzer import TradingAnalyzer
-    print("   ✅ strategies.analyzer OK")
-    
-    print("✅ TOUS LES MODULES IMPORTÉS")
-    
-except Exception as e:
-    print(f"❌ ERREUR FATALE lors de l'import: {e}")
-    import traceback
-    traceback.print_exc()
-    sys.exit(1)
+    print(f"   Symbol: {config.CRYPTO_SYMBOL}")
+    print(f"   Currency: {config.VS_CURRENCY}")
+    print(f"   Interval: {config.CHECK_INTERVAL}s")
+    print(f"   RSI Period: {config.RSI_PERIOD}")
+    print(f"   MA Periods: {config.MA_SHORT_PERIOD}/{config.MA_LONG_PERIOD}")
+    print("=" * 60 + "\n")
 
 def main():
-    """Boucle principale du bot."""
-    print("=" * 60)
-    print("🔄 DÉMARRAGE DE LA BOUCLE PRINCIPALE...")
-    print("=" * 60)
+    """Fonction principale."""
     
-    # Initialisation
-    print("⚙️ INITIALISATION DE LA CONFIGURATION...")
-    print(f"✅ Configuration chargée:")
-    print(f"   Symbol: {config.CRYPTO_SYMBOL}")
-    print(f"   Interval: {config.CHECK_INTERVAL}s")
-    print(f"   Cache: {config.CACHE_TTL}s")
+    # Bannière
+    print_banner()
     
-    collector = CryptoDataCollector()
-    analyzer = TradingAnalyzer()
+    # Vérification de la clé API
+    if not config.COINGECKO_API_KEY:
+        logger.error("❌ COINGECKO_API_KEY non définie !")
+        sys.exit(1)
     
+    logger.info(f"🔑 API Key: {config.COINGECKO_API_KEY[:10]}...")
+    
+    # Initialisation des modules
+    try:
+        collector = CryptoDataCollector(api_key=config.COINGECKO_API_KEY)
+        analyzer = TechnicalAnalyzer(
+            rsi_period=config.RSI_PERIOD,
+            rsi_oversold=config.RSI_OVERSOLD,
+            rsi_overbought=config.RSI_OVERBOUGHT,
+            ma_short=config.MA_SHORT_PERIOD,
+            ma_long=config.MA_LONG_PERIOD
+        )
+        logger.info("✅ Modules initialisés")
+    except Exception as e:
+        logger.error(f"❌ Erreur d'initialisation: {e}")
+        sys.exit(1)
+    
+    # Boucle principale
     iteration = 0
     
     while True:
+        iteration += 1
+        
         try:
-            iteration += 1
-            print("=" * 60)
+            print("\n" + "=" * 60)
             print(f"📊 ITÉRATION #{iteration} - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             print("=" * 60)
             
@@ -88,6 +79,7 @@ def main():
             
             if df is None or len(df) == 0:
                 logger.warning("❌ Pas de données disponibles")
+                print(f"⏳ Nouvelle tentative dans {config.CHECK_INTERVAL}s...")
                 time.sleep(config.CHECK_INTERVAL)
                 continue
             
@@ -98,32 +90,32 @@ def main():
             analysis = analyzer.analyze(df)
             
             if analysis:
-                print("=" * 60)
+                print("\n" + "=" * 60)
                 print("📈 RÉSULTATS DE L'ANALYSE:")
-                print(f"   💰 Prix: ${analysis['price']:.2f}")
-                print(f"   📊 RSI: {analysis['rsi']:.2f} → {analysis['rsi_signal']}")
-                print(f"   📉 MA Court: ${analysis['ma_short']:.2f}")
-                print(f"   📈 MA Long: ${analysis['ma_long']:.2f}")
-                print(f"   🎯 Signal MA: {analysis['ma_signal']}")
-                print(f"   🚦 SIGNAL GLOBAL: {analysis['global_signal']}")
+                print("=" * 60)
+                print(f"   💰 Prix actuel:     ${analysis['price']:.2f}")
+                print(f"   📊 RSI({config.RSI_PERIOD}):          {analysis['rsi']:.2f}")
+                print(f"      → Signal:        {analysis['rsi_signal']}")
+                print(f"   📉 MA({config.MA_SHORT_PERIOD}):           ${analysis['ma_short']:.2f}")
+                print(f"   📈 MA({config.MA_LONG_PERIOD}):          ${analysis['ma_long']:.2f}")
+                print(f"      → Signal:        {analysis['ma_signal']}")
+                print("=" * 60)
+                print(f"   🎯 SIGNAL GLOBAL:   {analysis['global_signal']}")
                 print("=" * 60)
             else:
                 print("❌ Échec de l'analyse")
             
             # Attente
-            print(f"⏳ Prochaine analyse dans {config.CHECK_INTERVAL} secondes...")
+            print(f"\n⏳ Prochaine analyse dans {config.CHECK_INTERVAL} secondes...\n")
             time.sleep(config.CHECK_INTERVAL)
             
         except KeyboardInterrupt:
-            print("\n👋 Arrêt du bot demandé")
+            print("\n\n👋 Arrêt du bot demandé par l'utilisateur")
             break
+            
         except Exception as e:
-            print("=" * 60)
-            print(f"❌ ERREUR dans l'itération {iteration}:")
-            print(f"   {str(e)}")
-            print("=" * 60)
-            import traceback
-            traceback.print_exc()
+            logger.error(f"❌ Erreur dans l'itération {iteration}: {e}", exc_info=True)
+            print(f"⏳ Nouvelle tentative dans {config.CHECK_INTERVAL}s...")
             time.sleep(config.CHECK_INTERVAL)
 
 if __name__ == "__main__":

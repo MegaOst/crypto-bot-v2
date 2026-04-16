@@ -1,10 +1,9 @@
 """Module de collecte de données CoinGecko."""
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import pandas as pd
 import requests
 from datetime import datetime, timedelta
-from config.settings import config
 
 logger = logging.getLogger(__name__)
 
@@ -13,15 +12,35 @@ class CryptoDataCollector:
     
     BASE_URL = "https://api.coingecko.com/api/v3"
     
-    def __init__(self, api_key: Optional[str] = None):
-        """Initialise le collecteur."""
-        self.api_key = api_key or config.COINGECKO_API_KEY
+    def __init__(self, api_key: str):
+        """
+        Initialise le collecteur.
+        
+        Args:
+            api_key: Clé API CoinGecko
+        """
+        if not api_key or not isinstance(api_key, str):
+            raise ValueError(f"API key invalide: {type(api_key)}")
+        
+        self.api_key = api_key.strip()
         self.session = requests.Session()
-        if self.api_key:
-            self.session.headers.update({'x-cg-pro-api-key': self.api_key})
+        self.session.headers.update({
+            'x-cg-pro-api-key': self.api_key,
+            'User-Agent': 'CryptoBot/1.0'
+        })
+        logger.info(f"✅ Collecteur initialisé avec API key: {self.api_key[:10]}...")
     
     def get_current_price(self, symbol: str, vs_currency: str = 'usd') -> Optional[Dict[str, Any]]:
-        """Récupère le prix actuel."""
+        """
+        Récupère le prix actuel.
+        
+        Args:
+            symbol: Symbole de la crypto (ex: 'ethereum')
+            vs_currency: Devise de référence (ex: 'usd')
+            
+        Returns:
+            Dictionnaire avec price, change_24h, etc.
+        """
         try:
             url = f"{self.BASE_URL}/simple/price"
             params = {
@@ -36,23 +55,33 @@ class CryptoDataCollector:
             response.raise_for_status()
             data = response.json()
             
-            if symbol in data:
-                return data[symbol]
+            if symbol not in data:
+                logger.error(f"Symbole {symbol} non trouvé")
+                return None
             
-            logger.warning(f"Symbole {symbol} non trouvé")
-            return None
+            return data[symbol]
             
-        except Exception as e:
-            logger.error(f"Erreur récupération prix: {e}")
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Erreur lors de la récupération du prix: {e}")
             return None
     
     def get_historical_data(
-        self, 
-        symbol: str, 
+        self,
+        symbol: str,
         vs_currency: str = 'usd',
         days: int = 30
     ) -> Optional[pd.DataFrame]:
-        """Récupère les données historiques."""
+        """
+        Récupère l'historique des prix.
+        
+        Args:
+            symbol: Symbole de la crypto
+            vs_currency: Devise de référence
+            days: Nombre de jours d'historique
+            
+        Returns:
+            DataFrame avec colonnes: timestamp, price, volume
+        """
         try:
             url = f"{self.BASE_URL}/coins/{symbol}/market_chart"
             params = {
@@ -61,28 +90,41 @@ class CryptoDataCollector:
                 'interval': 'daily'
             }
             
+            logger.info(f"📡 Requête: {url}")
+            logger.info(f"📋 Params: {params}")
+            
             response = self.session.get(url, params=params, timeout=15)
+            
+            logger.info(f"📥 Status: {response.status_code}")
+            
             response.raise_for_status()
             data = response.json()
             
-            if 'prices' not in data:
-                logger.warning("Pas de données de prix")
+            if 'prices' not in data or not data['prices']:
+                logger.warning("Pas de données de prix dans la réponse")
                 return None
             
             # Conversion en DataFrame
             df = pd.DataFrame(data['prices'], columns=['timestamp', 'price'])
             df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-            df.set_index('timestamp', inplace=True)
             
             # Ajout des volumes si disponibles
-            if 'total_volumes' in data:
+            if 'total_volumes' in data and data['total_volumes']:
                 volumes = pd.DataFrame(data['total_volumes'], columns=['timestamp', 'volume'])
-                volumes['timestamp'] = pd.to_datetime(volumes['timestamp'], unit='ms')
-                volumes.set_index('timestamp', inplace=True)
-                df = df.join(volumes)
+                df = df.merge(volumes, on='timestamp', how='left')
             
+            df = df.sort_values('timestamp').reset_index(drop=True)
+            
+            logger.info(f"✅ {len(df)} lignes récupérées")
             return df
             
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"❌ Erreur HTTP lors de la récupération de l'historique: {e}")
+            logger.error(f"Response: {e.response.text if hasattr(e, 'response') else 'N/A'}")
+            return None
+        except requests.exceptions.RequestException as e:
+            logger.error(f"❌ Erreur réseau: {e}")
+            return None
         except Exception as e:
-            logger.error(f"Erreur récupération historique: {e}")
+            logger.error(f"❌ Erreur inattendue: {e}", exc_info=True)
             return None
