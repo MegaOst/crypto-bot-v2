@@ -6,7 +6,7 @@ class TradingConfig:
     """Configuration du bot de trading"""
     
     # Crypto à analyser
-    CRYPTO_SYMBOL: str = os.getenv('CRYPTO_SYMBOL', 'ethereum')
+    CRYPTO_SYMBOL: str = os.getenv('SYMBOL', 'ethereum')  # ← CHANGÉ ICI
     VS_CURRENCY: str = os.getenv('VS_CURRENCY', 'usd')
     
     # Intervalles (en secondes)
@@ -17,8 +17,11 @@ class TradingConfig:
     RSI_PERIOD: int = int(os.getenv('RSI_PERIOD', '14'))
     RSI_OVERSOLD: int = int(os.getenv('RSI_OVERSOLD', '30'))
     RSI_OVERBOUGHT: int = int(os.getenv('RSI_OVERBOUGHT', '70'))
-    MA_SHORT_PERIOD: int = int(os.getenv('MA_SHORT_PERIOD', '20'))
-    MA_LONG_PERIOD: int = int(os.getenv('MA_LONG_PERIOD', '50'))
+    MA_SHORT_PERIOD: int = int(os.getenv('MA_SHORT', '20'))      # ← CHANGÉ ICI
+    MA_LONG_PERIOD: int = int(os.getenv('MA_LONG', '50'))       # ← CHANGÉ ICI
+    
+    # API
+    COINGECKO_API_KEY: str = os.getenv('COINGECKO_API_KEY', '')
     
     # Logs
     LOG_LEVEL: str = os.getenv('LOG_LEVEL', 'INFO')
