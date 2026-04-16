@@ -1,92 +1,92 @@
-"""Module de collecte de données CoinGecko."""
-import logging
-from typing import Optional, Dict, Any
-import pandas as pd
+"""
+Module de collecte des données depuis l'API CoinGecko
+"""
+
 import requests
+import logging
 from datetime import datetime
+from typing import Optional
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-class CryptoDataCollector:
-    """Collecteur de données via l'API CoinGecko."""
-    
-    BASE_URL = "https://api.coingecko.com/api/v3"
+class DataCollector:
+    """Collecteur de données crypto via CoinGecko API"""
     
     def __init__(self, api_key: str):
-        """Initialise le collecteur.
+        """
+        Initialise le collecteur
         
         Args:
-            api_key: Clé API CoinGecko
+            api_key: Clé API CoinGecko Pro
         """
         self.api_key = api_key
+        self.base_url = "https://api.coingecko.com/api/v3"
         self.session = requests.Session()
         self.session.headers.update({
-            'x-cg-pro-api-key': self.api_key,
+            'x-cg-pro-api-key': api_key,
             'Accept': 'application/json'
         })
-        logger.info(f"✅ Collecteur initialisé avec API key: {self.api_key[:11]}...")
+        logger.info(f"✅ Collecteur initialisé avec API key: {api_key[:10]}...")
     
-    def get_historical_data(
+    def get_market_data(
         self,
         symbol: str,
         vs_currency: str = 'usd',
         days: int = 30
     ) -> Optional[pd.DataFrame]:
-        """Récupère l'historique des prix.
+        """
+        Récupère l'historique de prix
         
         Args:
-            symbol: Symbole de la crypto (ex: 'ethereum')
-            vs_currency: Devise de référence
+            symbol: Symbole crypto (ex: 'bitcoin', 'ethereum')
+            vs_currency: Devise de référence (ex: 'usd', 'eur')
             days: Nombre de jours d'historique
             
         Returns:
-            DataFrame avec colonnes: timestamp, price, volume
+            DataFrame avec colonnes [timestamp, price, volume]
         """
+        endpoint = f"{self.base_url}/coins/{symbol}/market_chart"
+        
+        params = {
+            'vs_currency': vs_currency,
+            'days': days
+        }
+        
         try:
-            url = f"{self.BASE_URL}/coins/{symbol}/market_chart"
-            params = {
-                'vs_currency': vs_currency,
-                'days': days,
-                'interval': 'daily'
-            }
-            
-            logger.info(f"📡 Requête: {url}")
+            logger.info(f"📡 Requête: {endpoint}")
             logger.info(f"📋 Params: {params}")
             
-            response = self.session.get(url, params=params, timeout=10)
-            logger.info(f"📥 Status: {response.status_code}")
+            response = self.session.get(
+                endpoint,
+                params=params,
+                timeout=30
+            )
             
+            logger.info(f"📥 Status: {response.status_code}")
             response.raise_for_status()
+            
             data = response.json()
             
-            if not data or 'prices' not in data:
-                logger.error("❌ Réponse invalide de l'API")
+            # Extraction des prix et volumes
+            prices = data.get('prices', [])
+            volumes = data.get('total_volumes', [])
+            
+            if not prices:
+                logger.error("❌ Aucune donnée de prix reçue")
                 return None
             
-            # Construction manuelle du DataFrame (évite les problèmes de merge)
-            rows = []
+            # Conversion en DataFrame
+            df_prices = pd.DataFrame(prices, columns=['timestamp', 'price'])
+            df_volumes = pd.DataFrame(volumes, columns=['timestamp', 'volume'])
             
-            # Longueur minimale pour éviter les index out of range
-            n_prices = len(data['prices'])
-            n_volumes = len(data.get('total_volumes', []))
-            n_rows = min(n_prices, n_volumes) if n_volumes > 0 else n_prices
+            # Fusion sur timestamp
+            df = pd.merge(df_prices, df_volumes, on='timestamp', how='left')
             
-            for i in range(n_rows):
-                timestamp_ms, price = data['prices'][i]
-                row = {
-                    'timestamp': pd.to_datetime(timestamp_ms, unit='ms'),
-                    'price': price,
-                    'volume': None
-                }
-                
-                # Ajout du volume si disponible
-                if 'total_volumes' in data and i < len(data['total_volumes']):
-                    _, volume = data['total_volumes'][i]
-                    row['volume'] = volume
-                
-                rows.append(row)
+            # Conversion timestamp → datetime
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
             
-            df = pd.DataFrame(rows)
+            # Tri chronologique
             df = df.sort_values('timestamp').reset_index(drop=True)
             
             logger.info(f"✅ {len(df)} points récupérés (prix + volumes)")
@@ -94,41 +94,51 @@ class CryptoDataCollector:
             
             return df
             
-        except requests.exceptions.RequestException as e:
+        except requests.exceptions.HTTPError as e:
             logger.error(f"❌ Erreur HTTP: {e}")
             return None
+        except requests.exceptions.Timeout:
+            logger.error("❌ Timeout de la requête")
+            return None
+        except requests.exceptions.RequestException as e:
+            logger.error(f"❌ Erreur réseau: {e}")
+            return None
         except Exception as e:
-            logger.error(f"❌ Erreur inattendue: {e}", exc_info=True)
+            logger.error(f"❌ Erreur inattendue: {e}")
             return None
     
     def get_current_price(self, symbol: str, vs_currency: str = 'usd') -> Optional[float]:
-        """Récupère le prix actuel.
+        """
+        Récupère le prix actuel
         
         Args:
-            symbol: Symbole de la crypto
+            symbol: Symbole crypto
             vs_currency: Devise de référence
             
         Returns:
             Prix actuel ou None
         """
+        endpoint = f"{self.base_url}/simple/price"
+        
+        params = {
+            'ids': symbol,
+            'vs_currencies': vs_currency
+        }
+        
         try:
-            url = f"{self.BASE_URL}/simple/price"
-            params = {
-                'ids': symbol,
-                'vs_currencies': vs_currency
-            }
-            
-            response = self.session.get(url, params=params, timeout=10)
+            response = self.session.get(endpoint, params=params, timeout=10)
             response.raise_for_status()
+            
             data = response.json()
+            price = data.get(symbol, {}).get(vs_currency)
             
-            if symbol in data and vs_currency in data[symbol]:
-                price = data[symbol][vs_currency]
+            if price:
                 logger.info(f"💰 Prix actuel {symbol}: {price} {vs_currency.upper()}")
-                return price
-            
-            return None
-            
+                return float(price)
+            else:
+                logger.warning(f"⚠️ Prix non trouvé pour {symbol}")
+                return None
+                
         except Exception as e:
             logger.error(f"❌ Erreur récupération prix: {e}")
             return None
