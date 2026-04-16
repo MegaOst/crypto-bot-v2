@@ -92,7 +92,11 @@ while True:
         # Collecter les données
         print("🔄 Récupération des données...")
         collector = CryptoDataCollector(config)
-        df = collector.get_market_data()
+        df = collector.get_historical_data(
+    symbol=config.crypto_symbol,
+    vs_currency=config.vs_currency,
+    days=30
+)
         
         if df is None or df.empty:
             print("⚠️ Aucune donnée récupérée")
