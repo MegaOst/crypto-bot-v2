@@ -80,29 +80,30 @@ class CryptoDataCollector:
             df_prices = pd.DataFrame(prices, columns=['timestamp', 'price'])
             df_volumes = pd.DataFrame(volumes, columns=['timestamp', 'volume'])
             
-            # Fusion des deux DataFrames
+            # Fusion des données
             df = pd.merge(df_prices, df_volumes, on='timestamp', how='left')
             
-            # Conversion timestamp en datetime
+            # Conversion timestamp
             df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
             
-            # Tri par date
+            # Tri et reset index
             df = df.sort_values('timestamp').reset_index(drop=True)
             
-            logger.info(f"✅ {len(df)} points récupérés (prix + volumes)")
+            logger.info(f"✅ {len(df)} points de données récupérés")
             logger.info(f"📊 Période: {df['timestamp'].min()} → {df['timestamp'].max()}")
             
             return df
             
         except requests.exceptions.HTTPError as e:
-            logger.error(f"❌ Erreur HTTP: {e}")
+            logger.error(f"❌ Erreur HTTP {response.status_code}: {e}")
+            if response.status_code == 429:
+                logger.error("⚠️ Rate limit atteint - attendre avant de réessayer")
             return None
-        except requests.exceptions.Timeout:
-            logger.error("❌ Timeout de la requête")
-            return None
+            
         except requests.exceptions.RequestException as e:
             logger.error(f"❌ Erreur réseau: {e}")
             return None
+            
         except Exception as e:
             logger.error(f"❌ Erreur inattendue: {e}")
             return None
