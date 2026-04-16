@@ -105,13 +105,14 @@ class CryptoDataCollector:
                 return None
             
             # Conversion en DataFrame
-            df = pd.DataFrame(data['prices'], columns=['timestamp', 'price'])
-            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-            
-            # Ajout des volumes si disponibles
-            if 'total_volumes' in data and data['total_volumes']:
-                volumes = pd.DataFrame(data['total_volumes'], columns=['timestamp', 'volume'])
-                df = df.merge(volumes, on='timestamp', how='left')
+df = pd.DataFrame(data['prices'], columns=['timestamp', 'price'])
+df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+
+# Ajout des volumes si disponibles
+if 'total_volumes' in data and data['total_volumes']:
+    volumes = pd.DataFrame(data['total_volumes'], columns=['timestamp', 'volume'])
+    volumes['timestamp'] = pd.to_datetime(volumes['timestamp'], unit='ms')  # ← AJOUT DE CETTE LIGNE
+    df = df.merge(volumes, on='timestamp', how='left')
             
             df = df.sort_values('timestamp').reset_index(drop=True)
             
