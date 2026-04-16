@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Trading Bot</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Crypto Trading Bot</h1>
+        <div id="status">
+            <p>Status: <span id="bot-status">Loading...</span></p>
+        </div>
+        <div id="positions">
+            <h2>Positions actives</h2>
+            <div id="positions-list">Chargement...</div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
