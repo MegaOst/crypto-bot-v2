@@ -1,1 +1,19 @@
 echo "python-3.11" > runtime.txt
+
+# Web Framework
+flask==3.0.0
+gunicorn==21.2.0
+
+# Crypto APIs
+python-binance==1.0.19
+ccxt==4.2.25
+requests==2.31.0
+
+# Data Analysis
+pandas>=2.2.0
+numpy>=1.26.0
+python-dotenv==1.0.0
+
+# Technical Analysis
+pandas-ta==0.3.14b0
+scikit-learn==1.4.0
