@@ -1,8 +1,11 @@
 __pycache__/
-*.pyc
-*.pyo
-.env
-logs/*.log
-.DS_Store
-*.swp
+*.py[cod]
+.Python
 venv/
+.env
+.venv
+*.log
+logs/*.log
+logs/*.json
+.DS_Store
+*.pyc

@@ -1,2 +1,2 @@
-from .collector import DataCollector
-__all__ = ['DataCollector']
+from .market_data import MarketData
+__all__ = ['MarketData']

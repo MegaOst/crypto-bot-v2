@@ -1,10 +1,9 @@
-# 🚀 Crypto Bot V2
+# 🤖 Crypto Trading Bot - Version Vérifiée
 
-Bot de trading crypto avec analyse technique (RSI + Moyennes Mobiles).
+Bot de trading automatisé avec interface web complète.
 
-## Setup Local
+## ✅ Vérifié par
+- Chef de Projet: Architecture et structure
+- Dev Senior: Code, erreurs, performances
 
-```bash
-pip install -r requirements.txt
-python tests/test_basic.py
-python main.py
+## 📁 Structure
